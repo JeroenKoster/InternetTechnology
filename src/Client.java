@@ -11,30 +11,53 @@ public class Client {
 
     public void run()
     {
-        while (true) {
+        String message, nickname, result;
+        try {
+            Socket socket;
             Scanner scanner = new Scanner(System.in);
             System.out.print("Please enter your nickname: ");
-            String nickname = scanner.nextLine();
-            try {
-                Socket socket = new Socket("localhost", SERVER_PORT);
-                ObjectOutputStream outputStream = new ObjectOutputStream(socket.getOutputStream());
+            nickname = scanner.nextLine();
+            socket = new Socket("localhost", SERVER_PORT);
+            new ClientThread(socket).start();
+            System.out.println("listener Thread created");
+            ObjectOutputStream outputStream = new ObjectOutputStream(socket.getOutputStream());
+            while (true) {
                 System.out.print("Message: ");
-                String message = nickname + ": " + scanner.nextLine();
-                outputStream.writeObject(message);
+                message = scanner.nextLine();
+                result = nickname + ": " + message;
+                outputStream.writeObject(result);
                 outputStream.flush();
-//            outputStream.close();
+            }
+        }catch (Exception e) {
+            System.out.println("Exception: " + e.getMessage());
+        }
+    }
 
-                ObjectInputStream ois = new ObjectInputStream(socket.getInputStream());
-                String receivedMessage = ois.readObject().toString();
-                System.out.println("Message from " + socket.getInetAddress());
-                System.out.println(receivedMessage);
+    public class ClientThread extends Thread {
+        private String message;
+        private Socket socket;
+        private ObjectInputStream ois;
+        private boolean connected = true;
 
-            } catch (Exception e) {
+        public ClientThread(Socket socket)
+        {
+            this.socket = socket;
+        }
+
+        public void run()
+        {
+            try {
+                ois = new ObjectInputStream(socket.getInputStream());
+                while (connected) {
+                    String message = ois.readObject().toString();
+                    System.out.println("Message received from " + message);
+                }
+            }
+            catch (Exception e) {
                 System.out.println("Exception: " + e.getMessage());
             }
         }
     }
-
 
     public static void main(String[] args)
     {

@@ -1,7 +1,6 @@
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
 
 /**
@@ -9,7 +8,7 @@ import java.util.ArrayList;
  */
 public class Server {
 
-    ArrayList<Socket> sockets = new ArrayList<>();
+    ArrayList<ClientThread> clients = new ArrayList<>();
     private final static int SERVER_PORT = 1500;
     ServerSocket serverSocket;
 
@@ -24,19 +23,9 @@ public class Server {
             while (true) {
                 System.out.println("Waiting for connection...");
                 Socket socket = serverSocket.accept();
-                //if (!sockets.contains(socket)) {
-                    System.out.println("New socket added");
-                    sockets.add(socket);
-
-                //}
-                System.out.println("Connection Accepted from: " + socket.getInetAddress());
-                ObjectInputStream inputStream = new ObjectInputStream(socket.getInputStream());
-                String message = inputStream.readObject().toString();
-                System.out.println(message);
-                System.out.println(sockets.size());
-                ClientThread thread = new ClientThread(socket, message);
+                ClientThread thread = new ClientThread(socket, this);
+                clients.add(thread);
                 thread.start();
-
             }
         }
         catch (Exception e) {
@@ -44,30 +33,41 @@ public class Server {
         }
     }
 
-    public class ClientThread extends Thread {
-        private Socket socket;
-        ObjectInputStream ois;
-        ObjectOutputStream oos;
+    public void broadcastMessage(String message) {
+        for (int i = 0; i < clients.size(); i++) {
+            ClientThread t = clients.get(i);
+            t.sendMessage(message);
+        }
+    }
 
-        public ClientThread(Socket socket, String message)
+
+    public class ClientThread extends Thread {
+        private String message;
+        private Socket socket;
+        private ObjectInputStream ois;
+        private ObjectOutputStream oos;
+        private boolean connected = true;
+        Server server;
+
+        public ClientThread(Socket socket, Server server)
         {
+            this.server = server;
+            this.socket = socket;
             try {
-                this.socket = socket;
+
                 this.ois = new ObjectInputStream(socket.getInputStream());
                 this.oos = new ObjectOutputStream(socket.getOutputStream());
                 System.out.println("Creating thread for socket: " + socket.getInetAddress());
-            }
+                            }
             catch (IOException ioe) {
                 System.out.println("IOException: " + ioe.getMessage());
             }
-
         }
 
-        public void SendMessage(String message){
+        public void sendMessage(String message){
             try{
                 oos.writeObject(message);
                 oos.flush();
-                oos.close();
             } catch (Exception e) {
                 System.out.println("Exception: " + e.getMessage());
             }
@@ -76,12 +76,13 @@ public class Server {
         public void run()
         {
             try {
-                while (true) {
-                    String message = ois.readObject().toString();
-                    SendMessage(message);
+                while (connected) {
+                    message = ois.readObject().toString();
+                    server.broadcastMessage(message);
                 }
-            } catch (Exception e) {
-                System.out.println("Exception: " + e.getMessage());
+            }
+            catch (Exception e) {
+                System.out.println("Exception in run(): " + e.getMessage());
             }
         }
     }
